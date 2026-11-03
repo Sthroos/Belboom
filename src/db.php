@@ -1,0 +1,77 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * Returns the shared PDO connection; creates the schema on first use.
+ */
+function db(): PDO
+{
+    static $pdo = null;
+    if ($pdo !== null) {
+        return $pdo;
+    }
+    $pdo = new PDO('sqlite:' . app_config()['db_path'], null, null, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false,
+    ]);
+    $pdo->exec('PRAGMA busy_timeout = 5000');
+    $pdo->exec('PRAGMA journal_mode = WAL');
+    $pdo->exec('PRAGMA foreign_keys = ON');
+    // Overwrite deleted rows on disk instead of leaving them in free pages.
+    $pdo->exec('PRAGMA secure_delete = ON');
+    migrate($pdo);
+    return $pdo;
+}
+
+function migrate(PDO $pdo): void
+{
+    $pdo->exec(<<<'SQL'
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY,
+            username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+            display_name TEXT NOT NULL,
+            role TEXT NOT NULL CHECK (role IN ('admin', 'user')),
+            weekly_hours INTEGER NOT NULL CHECK (weekly_hours BETWEEN 1 AND 40),
+            password_hash TEXT,
+            totp_secret TEXT,
+            totp_last_step INTEGER NOT NULL DEFAULT 0,
+            session_version INTEGER NOT NULL DEFAULT 0,
+            active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+            created_at INTEGER NOT NULL,
+            last_login_at INTEGER
+        ) STRICT;
+
+        CREATE TABLE IF NOT EXISTS invites (
+            id INTEGER PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            token_hash TEXT NOT NULL UNIQUE,
+            expires_at INTEGER NOT NULL,
+            used_at INTEGER,
+            created_at INTEGER NOT NULL
+        ) STRICT;
+
+        CREATE TABLE IF NOT EXISTS login_failures (
+            id INTEGER PRIMARY KEY,
+            attempt_key TEXT NOT NULL,
+            created_at INTEGER NOT NULL
+        ) STRICT;
+        CREATE INDEX IF NOT EXISTS idx_login_failures_key ON login_failures (attempt_key, created_at);
+
+        CREATE TABLE IF NOT EXISTS contacts (
+            id INTEGER PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            contact_date TEXT NOT NULL,
+            category TEXT NOT NULL CHECK (category IN ('start', 'opzeg_onvrede', 'opzeg_neutraal', 'overig')),
+            call_minutes INTEGER NOT NULL CHECK (call_minutes BETWEEN 1 AND 240),
+            extra_minutes INTEGER NOT NULL CHECK (extra_minutes BETWEEN 0 AND 240),
+            energy INTEGER NOT NULL CHECK (energy BETWEEN -2 AND 2),
+            value_score INTEGER NOT NULL CHECK (value_score BETWEEN 1 AND 5),
+            displaced_work INTEGER NOT NULL CHECK (displaced_work IN (0, 1)),
+            content TEXT NOT NULL,
+            impression TEXT NOT NULL,
+            created_at INTEGER NOT NULL
+        ) STRICT;
+        CREATE INDEX IF NOT EXISTS idx_contacts_date ON contacts (contact_date);
+        SQL);
+}

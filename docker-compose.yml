@@ -1,0 +1,31 @@
+services:
+  ledencontact:
+    build: .
+    image: ledencontact:1.0.0
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+      - /var/run/apache2:size=1m,mode=1777
+      - /var/lock/apache2:size=1m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 100
+    mem_limit: 256m
+    environment:
+      APP_BASE_URL: ${APP_BASE_URL:?set APP_BASE_URL, e.g. https://ledencontact.example.nl}
+      TRUSTED_PROXY: ${TRUSTED_PROXY:?set TRUSTED_PROXY to the reverse proxy IP or CIDR}
+      TZ: Europe/Amsterdam
+    volumes:
+      - ledencontact-data:/var/www/data
+    # Only reachable via the reverse proxy. Bind to the host IP the proxy uses; never expose on 0.0.0.0 without TLS in front.
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks: [ledencontact]
+
+volumes:
+  ledencontact-data:
+
+networks:
+  ledencontact:
