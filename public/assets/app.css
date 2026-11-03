@@ -38,3 +38,8 @@ p.flash.error { padding-left: 1rem; }
 .contact header strong { color: var(--text); }
 .secret { font-family: ui-monospace, monospace; font-size: 1.1rem; letter-spacing: .05em; word-break: break-all; }
 .secret.small { font-size: .8rem; }
+.inline-row { display: flex; gap: .5rem; align-items: center; }
+.inline-row select { width: auto; margin-top: 0; }
+.filter { display: flex; gap: .75rem; align-items: flex-end; margin-bottom: 1rem; }
+.filter label { margin-bottom: 0; }
+.filter select { width: auto; }

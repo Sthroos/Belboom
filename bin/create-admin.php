@@ -29,7 +29,7 @@ if ($existing !== false && $existing['role'] !== 'admin') {
     fwrite(STDERR, "Gebruiker bestaat al en is geen admin.\n");
     exit(1);
 }
-$userId = $existing === false ? create_user($username, $displayName, 'admin', $weeklyHours) : (int) $existing['id'];
+$userId = $existing === false ? create_user($username, $displayName, 'admin', $weeklyHours, null) : (int) $existing['id'];
 $link = issue_invite($userId);
 log_event('info', $existing === false ? 'admin_created_cli' : 'admin_reset_cli', ['user_id' => $userId]);
 fwrite(STDOUT, "Uitnodigingslink (72 uur geldig, eenmalig):\n{$link}\n");

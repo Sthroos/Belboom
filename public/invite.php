@@ -3,9 +3,8 @@ declare(strict_types=1);
 
 require __DIR__ . '/../src/bootstrap.php';
 
-$token = text_field($_GET['token'] ?? $_POST['token'] ?? null);
-$invite = find_valid_invite($token);
-if ($invite === null) {
+function render_invalid_invite(): never
+{
     http_response_code(404);
     render_header('Uitnodiging ongeldig', null);
     echo '<p>Deze link is ongeldig, verlopen of al gebruikt. Vraag de beheerder om een nieuwe uitnodiging.</p>';
@@ -13,12 +12,32 @@ if ($invite === null) {
     exit;
 }
 
-// The secret lives in the session until the user proves the app is set up correctly.
-if (($_SESSION['invite_setup']['invite_id'] ?? null) !== $invite['invite_id']) {
-    session_regenerate_id(true);
-    $_SESSION['invite_setup'] = ['invite_id' => $invite['invite_id'], 'secret' => totp_generate_secret()];
+// Move the token from the URL into the session and redirect, so it does not stay in the
+// address bar or leak via Referer headers on follow-up requests.
+if (isset($_GET['token'])) {
+    $urlToken = text_field($_GET['token']);
+    $invite = find_valid_invite($urlToken);
+    if ($invite === null) {
+        render_invalid_invite();
+    }
+    // The TOTP secret lives in the session until the user proves the app is set up correctly.
+    if (($_SESSION['invite_setup']['invite_id'] ?? null) !== $invite['invite_id']) {
+        session_regenerate_id(true);
+        $_SESSION['invite_setup'] = [
+            'token' => $urlToken,
+            'invite_id' => $invite['invite_id'],
+            'secret' => totp_generate_secret(),
+        ];
+    }
+    redirect('/invite.php');
 }
-$secret = $_SESSION['invite_setup']['secret'];
+
+$setup = $_SESSION['invite_setup'] ?? null;
+$invite = is_array($setup) ? find_valid_invite($setup['token']) : null;
+if ($invite === null) {
+    render_invalid_invite();
+}
+$secret = $setup['secret'];
 $errors = [];
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
@@ -54,7 +73,6 @@ render_errors($errors);
 ?>
 <form method="post" action="/invite.php" class="card narrow">
   <?= csrf_field() ?>
-  <input type="hidden" name="token" value="<?= e($token) ?>">
   <p>Welkom <?= e($invite['display_name']) ?>. Je gebruikersnaam is <strong><?= e($invite['username']) ?></strong>.</p>
 
   <h2>1. Wachtwoord</h2>
