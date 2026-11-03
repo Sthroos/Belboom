@@ -21,7 +21,7 @@ services:
       - ledencontact-data:/var/www/data
     # Only reachable via the reverse proxy. Bind to the host IP the proxy uses; never expose on 0.0.0.0 without TLS in front.
     ports:
-      - "127.0.0.1:8080:8080"
+      - "0.0.0.0:8080:8080"
     networks: [ledencontact]
 
 volumes:
