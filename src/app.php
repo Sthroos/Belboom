@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/db.php';
+require __DIR__ . '/regions.php';
 require __DIR__ . '/totp.php';
 require __DIR__ . '/auth.php';
 require __DIR__ . '/contacts.php';

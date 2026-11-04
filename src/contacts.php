@@ -30,9 +30,14 @@ function int_in_range(mixed $value, int $min, int $max): ?int
     return $int === false ? null : $int;
 }
 
+/** Trimmed UTF-8 text without control characters (keeps newline and tab); '' for non-strings or invalid UTF-8. */
 function text_field(mixed $value): string
 {
-    return is_string($value) ? trim(str_replace("\r\n", "\n", $value)) : '';
+    if (!is_string($value) || !mb_check_encoding($value, 'UTF-8')) {
+        return '';
+    }
+    $normalized = str_replace("\r\n", "\n", $value);
+    return trim(preg_replace('/[\x00-\x08\x0B-\x1F\x7F\x{202A}-\x{202E}\x{2066}-\x{2069}]/u', '', $normalized));
 }
 
 /**
@@ -111,26 +116,35 @@ function delete_own_contact(int $contactId, int $userId): bool
     return $stmt->rowCount() === 1;
 }
 
-/* ---------- Read models for the dashboard ---------- */
+/* ---------- Read models ---------- */
 
-const STATS_COLUMNS = 'COUNT(*) AS n,
-    COALESCE(SUM(call_minutes), 0) AS call_min,
-    COALESCE(SUM(extra_minutes), 0) AS extra_min,
-    AVG(energy) AS avg_energy,
-    AVG(value_score) AS avg_value,
-    COALESCE(SUM(displaced_work), 0) AS displaced';
+const STATS_COLUMNS = 'COUNT(c.id) AS n,
+    COALESCE(SUM(c.call_minutes), 0) AS call_min,
+    COALESCE(SUM(c.extra_minutes), 0) AS extra_min,
+    AVG(c.energy) AS avg_energy,
+    AVG(c.value_score) AS avg_value,
+    COALESCE(SUM(c.displaced_work), 0) AS displaced';
 
-function stats_total(): array
+// :region NULL means "all regions"; SQLite allows reusing a named parameter.
+const REGION_FILTER = '(:region IS NULL OR u.region = :region)';
+
+/** @return array<string, mixed> */
+function stats_total(?string $region): array
 {
-    $row = db()->query('SELECT ' . STATS_COLUMNS . ', MIN(contact_date) AS first_date FROM contacts')->fetch();
-    return $row;
+    $stmt = db()->prepare('SELECT ' . STATS_COLUMNS . ', MIN(c.contact_date) AS first_date
+                           FROM contacts c JOIN users u ON u.id = c.user_id WHERE ' . REGION_FILTER);
+    $stmt->execute(['region' => $region]);
+    return $stmt->fetch();
 }
 
 /** @return array<string, array<string, mixed>> keyed by category, every category present. */
-function stats_by_category(): array
+function stats_by_category(?string $region): array
 {
-    $rows = db()->query('SELECT category, ' . STATS_COLUMNS . ' FROM contacts GROUP BY category')->fetchAll();
-    $byCategory = array_column($rows, null, 'category');
+    $stmt = db()->prepare('SELECT c.category, ' . STATS_COLUMNS . '
+                           FROM contacts c JOIN users u ON u.id = c.user_id WHERE ' . REGION_FILTER . '
+                           GROUP BY c.category');
+    $stmt->execute(['region' => $region]);
+    $byCategory = array_column($stmt->fetchAll(), null, 'category');
     $result = [];
     foreach (array_keys(CONTACT_CATEGORIES) as $key) {
         $result[$key] = $byCategory[$key]
@@ -139,24 +153,44 @@ function stats_by_category(): array
     return $result;
 }
 
-function stats_by_user(): array
+function stats_by_user(?string $region): array
 {
-    return db()->query('SELECT u.display_name, u.weekly_hours, ' . STATS_COLUMNS . '
+    $stmt = db()->prepare('SELECT u.display_name, u.region, u.weekly_hours, ' . STATS_COLUMNS . '
+                           FROM users u LEFT JOIN contacts c ON c.user_id = u.id
+                           WHERE u.active = 1 AND ' . REGION_FILTER . '
+                           GROUP BY u.id ORDER BY u.display_name');
+    $stmt->execute(['region' => $region]);
+    return $stmt->fetchAll();
+}
+
+function stats_by_region(): array
+{
+    return db()->query('SELECT u.region, COUNT(DISTINCT u.id) AS users, ' . STATS_COLUMNS . '
                         FROM users u LEFT JOIN contacts c ON c.user_id = u.id
-                        WHERE u.active = 1 GROUP BY u.id ORDER BY u.display_name')->fetchAll();
+                        WHERE u.active = 1 GROUP BY u.region ORDER BY u.region')->fetchAll();
 }
 
-function stats_by_month(): array
+function stats_by_month(?string $region): array
 {
-    return db()->query("SELECT substr(contact_date, 1, 7) AS month, " . STATS_COLUMNS . "
-                        FROM contacts GROUP BY month ORDER BY month DESC LIMIT 12")->fetchAll();
+    $stmt = db()->prepare('SELECT substr(c.contact_date, 1, 7) AS month, ' . STATS_COLUMNS . '
+                           FROM contacts c JOIN users u ON u.id = c.user_id WHERE ' . REGION_FILTER . '
+                           GROUP BY month ORDER BY month DESC LIMIT 12');
+    $stmt->execute(['region' => $region]);
+    return $stmt->fetchAll();
 }
 
-function recent_contacts(int $limit): array
+function recent_contacts(?string $region, int $limit): array
 {
-    $stmt = db()->prepare('SELECT c.*, u.display_name FROM contacts c JOIN users u ON u.id = c.user_id
-                           ORDER BY c.contact_date DESC, c.id DESC LIMIT ?');
-    $stmt->execute([$limit]);
+    $stmt = db()->prepare('SELECT c.*, u.display_name, u.region FROM contacts c JOIN users u ON u.id = c.user_id
+                           WHERE ' . REGION_FILTER . ' ORDER BY c.contact_date DESC, c.id DESC LIMIT :limit');
+    $stmt->execute(['region' => $region, 'limit' => $limit]);
+    return $stmt->fetchAll();
+}
+
+function own_contacts(int $userId, int $limit): array
+{
+    $stmt = db()->prepare('SELECT * FROM contacts WHERE user_id = ? ORDER BY contact_date DESC, id DESC LIMIT ?');
+    $stmt->execute([$userId, $limit]);
     return $stmt->fetchAll();
 }
 

@@ -12,10 +12,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $password = is_string($_POST['password'] ?? null) ? $_POST['password'] : '';
     $confirm = is_string($_POST['password_confirm'] ?? null) ? $_POST['password_confirm'] : '';
 
-    if (is_rate_limited($user['username'], client_ip())) {
-        $errors[] = 'Te veel mislukte pogingen. Probeer het over 15 minuten opnieuw.';
+    if (!register_login_attempt($user['username'])) {
+        $errors[] = 'Te veel pogingen. Probeer het over 15 minuten opnieuw.';
     } elseif (verify_password_login($user['username'], $current) === null) {
-        record_login_failure($user['username'], client_ip());
         $errors[] = 'Huidig wachtwoord onjuist.';
     } else {
         $policyError = password_policy_error($password, $confirm, $user['username']);
@@ -26,7 +25,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     if ($errors === []) {
         // Bumping session_version logs out every other session of this user.
         db()->prepare('UPDATE users SET password_hash = ?, session_version = session_version + 1 WHERE id = ?')
-            ->execute([password_hash($password, PASSWORD_ARGON2ID), $user['id']]);
+            ->execute([hash_password($password), $user['id']]);
+        clear_login_attempts($user['username']);
         $user['session_version'] = (int) $user['session_version'] + 1;
         establish_login_session($user);
         log_event('info', 'password_changed', ['user_id' => (int) $user['id']]);

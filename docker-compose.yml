@@ -12,16 +12,16 @@ services:
     security_opt:
       - no-new-privileges:true
     pids_limit: 100
-    mem_limit: 256m
+    mem_limit: 512m
     environment:
       APP_BASE_URL: ${APP_BASE_URL:?set APP_BASE_URL, e.g. https://ledencontact.example.nl}
       TRUSTED_PROXY: ${TRUSTED_PROXY:?set TRUSTED_PROXY to the reverse proxy IP or CIDR}
       TZ: Europe/Amsterdam
     volumes:
       - ledencontact-data:/var/www/data
-    # Only reachable via the reverse proxy. Bind to the host IP the proxy uses; never expose on 0.0.0.0 without TLS in front.
+    # Plain HTTP: bind only to the LAN IP the reverse proxy (zeus, 192.168.2.41) connects to.
     ports:
-      - "0.0.0.0:8080:8080"
+      - "192.168.2.42:8080:8080"
     networks: [ledencontact]
 
 volumes:

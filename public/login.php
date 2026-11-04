@@ -25,13 +25,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     if ($stage === 'password') {
         $username = text_field($_POST['username'] ?? null);
         $password = is_string($_POST['password'] ?? null) ? $_POST['password'] : '';
-        if (is_rate_limited($username, $ip)) {
+        if (!register_login_attempt($username)) {
             log_event('warning', 'login_rate_limited', ['ip' => $ip]);
             $error = RATE_LIMIT_ERROR;
         } else {
             $user = verify_password_login($username, $password);
             if ($user === null) {
-                record_login_failure($username, $ip);
                 log_event('notice', 'login_password_failed', ['ip' => $ip]);
                 $error = GENERIC_LOGIN_ERROR;
             } else {
@@ -45,7 +44,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
     if ($stage === 'totp' && is_array($pending)) {
         $code = preg_replace('/\s+/', '', text_field($_POST['code'] ?? null));
-        if (is_rate_limited($pending['username'], $ip)) {
+        if (!register_login_attempt($pending['username'])) {
             log_event('warning', 'login_rate_limited', ['ip' => $ip, 'user_id' => $pending['uid']]);
             $error = RATE_LIMIT_ERROR;
         } else {
@@ -53,13 +52,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             $stmt->execute([$pending['uid']]);
             $user = $stmt->fetch();
             if ($user !== false && verify_totp_login($user, $code)) {
-                clear_login_failures($user['username']);
+                clear_login_attempts($user['username']);
                 db()->prepare('UPDATE users SET last_login_at = ? WHERE id = ?')->execute([time(), $user['id']]);
                 establish_login_session($user);
                 log_event('info', 'login_success', ['user_id' => (int) $user['id'], 'ip' => $ip]);
                 redirect('/');
             }
-            record_login_failure($pending['username'], $ip);
             log_event('notice', 'login_totp_failed', ['ip' => $ip, 'user_id' => $pending['uid']]);
             $error = 'Code onjuist of al gebruikt. Wacht op een nieuwe code.';
         }

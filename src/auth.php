@@ -4,14 +4,15 @@ declare(strict_types=1);
 const SESSION_IDLE_SECONDS = 1800;
 const SESSION_ABSOLUTE_SECONDS = 28800;
 const PENDING_2FA_SECONDS = 300;
-const FAILURE_WINDOW_SECONDS = 900;
-const FAILURE_LIMIT_USER = 10;
-const FAILURE_LIMIT_IP = 30;
+const ATTEMPT_WINDOW_SECONDS = 900;
+const ATTEMPT_LIMIT_PER_USER = 10;
 const INVITE_TTL_SECONDS = 259200;
 const PASSWORD_MIN = 12;
 const PASSWORD_MAX = 128;
-// Hash of a random discarded value: verifying against it keeps response time equal for unknown usernames.
-const DUMMY_PASSWORD_HASH = '$argon2id$v=19$m=65536,t=4,p=1$N2IyMllPZVFJdEpPVndiOA$MbCTYN2vzNfhqbu56ZAD3aoB9pfbcRhAVCfPH9L0hMk';
+// OWASP 2025 Argon2id minimum (19 MiB, t=2): bounds memory per login so parallel logins cannot OOM the container.
+const ARGON2_OPTIONS = ['memory_cost' => 19456, 'time_cost' => 2, 'threads' => 1];
+// Hash of a random discarded value with ARGON2_OPTIONS: keeps response time equal for unknown usernames.
+const DUMMY_PASSWORD_HASH = '$argon2id$v=19$m=19456,t=2,p=1$SWNKZlVWbU1TY0dwNDFrSQ$SYtcULCRaGr5xz/SVFVdKvcmI5f81YPcw8jJEOTqp6I';
 
 /* ---------- Session ---------- */
 
@@ -88,7 +89,7 @@ function require_login(): array
     if (!is_int($uid)) {
         redirect('/login.php');
     }
-    $stmt = db()->prepare('SELECT id, username, display_name, role, weekly_hours, session_version, active, password_hash
+    $stmt = db()->prepare('SELECT id, username, display_name, role, weekly_hours, region, session_version, active, password_hash
                            FROM users WHERE id = ?');
     $stmt->execute([$uid]);
     $user = $stmt->fetch();
@@ -116,43 +117,43 @@ function require_admin(): array
 }
 
 /* ---------- Brute-force protection ---------- */
+// Per user only: behind the OpenVPN port-share every external client has the same IP,
+// so a per-IP limit would let one attacker lock out everyone.
 
-function failure_keys(string $username, string $ip): array
+function attempt_key(string $username): string
 {
     // Hashed so a password accidentally typed into the username field is never stored.
-    return [
-        'u:' . hash('sha256', mb_strtolower($username)),
-        'ip:' . hash('sha256', $ip),
-    ];
+    return hash('sha256', mb_strtolower($username));
 }
 
-function is_rate_limited(string $username, string $ip): bool
+/**
+ * Records the attempt BEFORE verification and then counts, so parallel requests cannot
+ * all slip past the check (check-then-insert race).
+ *
+ * @return bool true when the attempt may proceed.
+ */
+function register_login_attempt(string $username): bool
 {
-    $since = time() - FAILURE_WINDOW_SECONDS;
-    db()->prepare('DELETE FROM login_failures WHERE created_at < ?')->execute([$since]);
-    [$userKey, $ipKey] = failure_keys($username, $ip);
-    $stmt = db()->prepare('SELECT COUNT(*) FROM login_failures WHERE attempt_key = ? AND created_at >= ?');
-    $stmt->execute([$userKey, $since]);
-    $userCount = (int) $stmt->fetchColumn();
-    $stmt->execute([$ipKey, $since]);
-    $ipCount = (int) $stmt->fetchColumn();
-    return $userCount >= FAILURE_LIMIT_USER || $ipCount >= FAILURE_LIMIT_IP;
+    $now = time();
+    $key = attempt_key($username);
+    db()->prepare('DELETE FROM login_attempts WHERE created_at < ?')->execute([$now - ATTEMPT_WINDOW_SECONDS]);
+    db()->prepare('INSERT INTO login_attempts (attempt_key, created_at) VALUES (?, ?)')->execute([$key, $now]);
+    $stmt = db()->prepare('SELECT COUNT(*) FROM login_attempts WHERE attempt_key = ? AND created_at >= ?');
+    $stmt->execute([$key, $now - ATTEMPT_WINDOW_SECONDS]);
+    return (int) $stmt->fetchColumn() <= ATTEMPT_LIMIT_PER_USER;
 }
 
-function record_login_failure(string $username, string $ip): void
+function clear_login_attempts(string $username): void
 {
-    $stmt = db()->prepare('INSERT INTO login_failures (attempt_key, created_at) VALUES (?, ?)');
-    foreach (failure_keys($username, $ip) as $key) {
-        $stmt->execute([$key, time()]);
-    }
-}
-
-function clear_login_failures(string $username): void
-{
-    db()->prepare('DELETE FROM login_failures WHERE attempt_key = ?')->execute([failure_keys($username, '')[0]]);
+    db()->prepare('DELETE FROM login_attempts WHERE attempt_key = ?')->execute([attempt_key($username)]);
 }
 
 /* ---------- Credentials ---------- */
+
+function hash_password(string $password): string
+{
+    return password_hash($password, PASSWORD_ARGON2ID, ARGON2_OPTIONS);
+}
 
 /** @return array<string, mixed>|null active user when the password is correct. */
 function verify_password_login(string $username, string $password): ?array
@@ -164,9 +165,9 @@ function verify_password_login(string $username, string $password): ?array
     if ($user === false || !$passwordOk) {
         return null;
     }
-    if (password_needs_rehash($user['password_hash'], PASSWORD_ARGON2ID)) {
+    if (password_needs_rehash($user['password_hash'], PASSWORD_ARGON2ID, ARGON2_OPTIONS)) {
         db()->prepare('UPDATE users SET password_hash = ? WHERE id = ?')
-            ->execute([password_hash($password, PASSWORD_ARGON2ID), $user['id']]);
+            ->execute([hash_password($password), $user['id']]);
     }
     return $user;
 }
@@ -206,10 +207,10 @@ function username_is_valid(string $username): bool
     return (bool) preg_match('/^[a-z0-9._-]{3,32}$/', $username);
 }
 
-function create_user(string $username, string $displayName, string $role, int $weeklyHours): int
+function create_user(string $username, string $displayName, string $role, int $weeklyHours, ?string $region): int
 {
-    db()->prepare('INSERT INTO users (username, display_name, role, weekly_hours, created_at) VALUES (?, ?, ?, ?, ?)')
-        ->execute([$username, $displayName, $role, $weeklyHours, time()]);
+    db()->prepare('INSERT INTO users (username, display_name, role, weekly_hours, region, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+        ->execute([$username, $displayName, $role, $weeklyHours, $region, time()]);
     return (int) db()->lastInsertId();
 }
 
@@ -259,7 +260,7 @@ function accept_invite(array $invite, string $password, string $totpSecret, int 
     }
     $pdo->prepare('UPDATE users SET password_hash = ?, totp_secret = ?, totp_last_step = ?,
                    session_version = session_version + 1 WHERE id = ?')
-        ->execute([password_hash($password, PASSWORD_ARGON2ID), $totpSecret, $totpStep, $invite['user_id']]);
+        ->execute([hash_password($password), $totpSecret, $totpStep, $invite['user_id']]);
     $pdo->commit();
     return true;
 }

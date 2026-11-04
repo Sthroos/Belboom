@@ -59,10 +59,13 @@ function render_header(string $title, ?array $user): void
   <span class="brand">Ledencontact · pilot</span>
   <?php if ($user !== null): ?>
   <nav>
-    <a href="/">Dashboard</a>
+    <a href="/">Mijn registraties</a>
     <a href="/contact-new.php">Contact registreren</a>
+    <?php if ($user['role'] === 'admin'): ?>
+    <a href="/stats.php">Statistieken</a>
     <a href="/export.php">Export CSV</a>
-    <?php if ($user['role'] === 'admin'): ?><a href="/users.php">Gebruikers</a><?php endif; ?>
+    <a href="/users.php">Gebruikers</a>
+    <?php endif; ?>
     <a href="/password.php">Wachtwoord</a>
     <form method="post" action="/logout.php" class="inline">
       <?= csrf_field() ?>
