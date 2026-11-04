@@ -91,7 +91,10 @@ form:has(select[name="cancel_reason"] option[value="overig"]:checked) .other-rea
 /* Cancel reason only for cancelling members; the server discards it for other categories anyway. */
 .cancel-block { display: none; }
 form:has(select[name="category"] option[value^="opzeg_"]:checked) .cancel-block { display: block; }
-@supports not selector(:has(*)) { .other-field, .cancel-block { display: block; } }
+/* Call minutes and quality scores only for reached calls; the server stores 0/NULL otherwise. */
+.reached-only { display: none; }
+form:has(select[name="outcome"] option[value="bereikt"]:checked) .reached-only { display: block; }
+@supports not selector(:has(*)) { .other-field, .cancel-block, .reached-only { display: block; } }
 .narrow-input { max-width: 22rem; }
 .other-list-title { margin: .75rem 0 .25rem; font-weight: 600; }
 .other-list { margin: 0 0 1rem; }

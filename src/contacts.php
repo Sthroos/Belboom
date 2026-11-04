@@ -131,10 +131,14 @@ function validate_contact(array $input, DateTimeImmutable $today): array
     if ($followUp === null) {
         $errors[] = 'Kies of er een vervolgactie nodig is.';
     }
-    $callMinutes = int_in_range($input['call_minutes'] ?? null, 0, 240);
+    // No conversation means no call minutes; the attempt itself is registered as other time.
+    $callMinutes = $reached ? int_in_range($input['call_minutes'] ?? null, 1, 240) : 0;
     $extraMinutes = int_in_range($input['extra_minutes'] ?? null, 0, 240);
-    if ($callMinutes === null || $extraMinutes === null || $callMinutes + $extraMinutes < 1) {
-        $errors[] = 'Gesprekstijd en overige tijd: 0–240 minuten, samen minimaal 1 minuut.';
+    if ($callMinutes === null) {
+        $errors[] = 'Vul bij een gevoerd gesprek de gesprekstijd in (1–240 minuten).';
+    }
+    if ($extraMinutes === null || ($callMinutes === 0 && $extraMinutes < 1)) {
+        $errors[] = 'Overige tijd: 0–240 minuten; bij een poging zonder gesprek minimaal 1 minuut.';
     }
     // Quality scores only describe real conversations; discarded for failed attempts.
     $energy = $reached ? int_in_range($input['energy'] ?? null, -2, 2) : null;

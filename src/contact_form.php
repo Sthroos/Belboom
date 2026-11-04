@@ -31,16 +31,16 @@ function render_contact_form(array $data, string $action, string $submitLabel, D
         <input name="cancel_reason_other" maxlength="<?= CANCEL_REASON_OTHER_MAX ?>" value="<?= e($data['cancel_reason_other'] ?? '') ?>">
       </label>
     </div>
-    <label>Gesprekstijd (minuten, 0 bij niet bereikt)
-      <input type="number" name="call_minutes" min="0" max="240" value="<?= e($data['call_minutes']) ?>" required>
+    <label class="reached-only">Gesprekstijd (minuten)
+      <input type="number" name="call_minutes" min="0" max="240" value="<?= e($data['call_minutes']) ?>">
     </label>
-    <label>Overige tijd: voorbereiden, terugbellen, verslag (minuten)
+    <label>Overige tijd (minuten) <span class="sub-inline">voorbereiden, verslag; bij geen gesprek ook de tijd van de belpoging</span>
       <input type="number" name="extra_minutes" min="0" max="240" value="<?= e($data['extra_minutes']) ?>" required>
     </label>
-    <label>Energie-impact <span class="sub-inline">(bij gevoerd gesprek)</span>
+    <label class="reached-only">Energie-impact
       <select name="energy"><option value="">n.v.t.</option><?php render_options(ENERGY_LABELS, $data['energy']); ?></select>
     </label>
-    <label>Meerwaarde van dit contact <span class="sub-inline">(bij gevoerd gesprek)</span>
+    <label class="reached-only">Meerwaarde van dit contact
       <select name="value_score"><option value="">n.v.t.</option><?php render_options(VALUE_LABELS, $data['value_score']); ?></select>
     </label>
     <label>Vervolgactie nodig door
