@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 /**
  * Returns the shared PDO connection; migrates the schema on first use.
@@ -77,9 +77,39 @@ function migrate(PDO $pdo): void
                 DROP TABLE users;
                 ALTER TABLE users_v3 RENAME TO users;
                 SQL);
-            if ($pdo->query('PRAGMA foreign_key_check')->fetch() !== false) {
-                throw new RuntimeException('Foreign key violation after users table rebuild');
-            }
+        }
+        if ($version < 4) {
+            // Bureau staff have no paid ambassador hours: NULL for staff, required for everyone else.
+            $pdo->exec(<<<'SQL'
+                CREATE TABLE users_v4 (
+                    id INTEGER PRIMARY KEY,
+                    username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                    display_name TEXT NOT NULL,
+                    role TEXT NOT NULL CHECK (role IN ('admin', 'staff', 'user')),
+                    weekly_hours INTEGER CHECK (
+                        (role = 'staff' AND weekly_hours IS NULL)
+                        OR (role <> 'staff' AND weekly_hours BETWEEN 1 AND 40)
+                    ),
+                    region TEXT,
+                    password_hash TEXT,
+                    totp_secret TEXT,
+                    totp_last_step INTEGER NOT NULL DEFAULT 0,
+                    session_version INTEGER NOT NULL DEFAULT 0,
+                    active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+                    created_at INTEGER NOT NULL,
+                    last_login_at INTEGER
+                ) STRICT;
+                INSERT INTO users_v4 (id, username, display_name, role, weekly_hours, region, password_hash, totp_secret,
+                                      totp_last_step, session_version, active, created_at, last_login_at)
+                SELECT id, username, display_name, role, CASE WHEN role = 'staff' THEN NULL ELSE weekly_hours END,
+                       region, password_hash, totp_secret, totp_last_step, session_version, active, created_at, last_login_at
+                FROM users;
+                DROP TABLE users;
+                ALTER TABLE users_v4 RENAME TO users;
+                SQL);
+        }
+        if ($pdo->query('PRAGMA foreign_key_check')->fetch() !== false) {
+            throw new RuntimeException('Foreign key violation after migration');
         }
         $pdo->exec('PRAGMA user_version = ' . SCHEMA_VERSION);
         $pdo->exec('COMMIT');

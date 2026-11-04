@@ -24,9 +24,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     if ($action === 'create') {
         $username = mb_strtolower(text_field($_POST['username'] ?? null));
         $displayName = text_field($_POST['display_name'] ?? null);
-        $weeklyHours = int_in_range($_POST['weekly_hours'] ?? null, 1, 40);
         $region = parse_region($_POST['region'] ?? null);
         $role = resolve_role('user', $_POST['role'] ?? null);
+        $weeklyHours = $role !== null && role_has_hours($role) ? int_in_range($_POST['weekly_hours'] ?? null, 1, 40) : null;
         if ($role === null) {
             $errors[] = 'Kies een rol.';
         }
@@ -36,8 +36,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if ($displayName === '' || mb_strlen($displayName) > 80) {
             $errors[] = 'Naam is verplicht (maximaal 80 tekens).';
         }
-        if ($weeklyHours === null) {
-            $errors[] = 'Betaalde uren per week moet tussen 1 en 40 liggen.';
+        if ($role !== null && role_has_hours($role) && $weeklyHours === null) {
+            $errors[] = 'Vul voor een ambassadeur de betaalde uren per week in (1–40).';
         }
         if ($region === null) {
             $errors[] = 'Kies een regio.';
@@ -61,9 +61,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $currentRole = $stmt->fetchColumn();
         $role = $currentRole === false ? null : resolve_role($currentRole, $_POST['role'] ?? null);
         $region = parse_region($_POST['region'] ?? null);
-        $weeklyHours = int_in_range($_POST['weekly_hours'] ?? null, 1, 40);
-        if ($role === null || $region === null || $weeklyHours === null) {
-            $errors[] = 'Ongeldige rol, regio of uren (1–40).';
+        $weeklyHours = $role !== null && role_has_hours($role) ? int_in_range($_POST['weekly_hours'] ?? null, 1, 40) : null;
+        if ($role === null || $region === null || (role_has_hours($role) && $weeklyHours === null)) {
+            $errors[] = 'Ongeldige rol of regio, of geen betaalde uren (1–40) ingevuld voor een ambassadeur.';
         } else {
             // Role is read from the database on every request, so a change takes effect immediately.
             db()->prepare('UPDATE users SET role = ?, region = ?, weekly_hours = ? WHERE id = ?')
@@ -127,7 +127,7 @@ if ($inviteLink !== null): ?>
           <?php render_options(LHV_REGIONS, $row['region']); ?>
         </select>
       </td>
-      <td><input type="number" name="weekly_hours" form="<?= e($formId) ?>" aria-label="Uren per week" min="1" max="40" value="<?= e((int) $row['weekly_hours']) ?>" required class="hours"></td>
+      <td><input type="number" name="weekly_hours" form="<?= e($formId) ?>" aria-label="Uren per week" min="1" max="40" value="<?= e($row['weekly_hours']) ?>" placeholder="n.v.t." class="hours"></td>
       <td>
         <?= e($status) ?>
         <span class="sub"><?= e($row['last_login_at'] === null ? 'nooit ingelogd' : date('d-m-Y H:i', (int) $row['last_login_at'])) ?></span>
@@ -156,7 +156,7 @@ if ($inviteLink !== null): ?>
   </tbody>
 </table>
 </div>
-<p class="hint">"Nieuwe uitnodiging" wist wachtwoord en 2FA van de gebruiker en logt hem uit.</p>
+<p class="hint">Uren/week geldt alleen voor ambassadeurs; bij een bureaumedewerker wordt het genegeerd. "Nieuwe uitnodiging" wist wachtwoord en 2FA van de gebruiker en logt hem uit.</p>
 
 <h2>Gebruiker toevoegen</h2>
 <form method="post" action="/users.php" class="card narrow">
@@ -173,7 +173,7 @@ if ($inviteLink !== null): ?>
   <label>Regio (LHV-afdeling)
     <select name="region" required><option value="">Kies…</option><?php render_options(LHV_REGIONS, null); ?></select>
   </label>
-  <label>Betaalde uren per week <input type="number" name="weekly_hours" min="1" max="40" value="8" required></label>
+  <label>Betaalde uren per week (alleen ambassadeurs) <input type="number" name="weekly_hours" min="1" max="40" value="8"></label>
   <button type="submit">Aanmaken en uitnodigingslink tonen</button>
 </form>
 <?php

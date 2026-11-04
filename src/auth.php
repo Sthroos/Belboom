@@ -113,6 +113,12 @@ const ROLE_LABELS = [
 // Roles an admin may assign in the UI; admins are only created via bin/create-admin.php.
 const ASSIGNABLE_ROLES = ['user', 'staff'];
 
+/** Paid weekly hours only apply to ambassadors (and the admin); bureau staff have none. */
+function role_has_hours(string $role): bool
+{
+    return $role !== 'staff';
+}
+
 function can_view_stats(array $user): bool
 {
     return in_array($user['role'], ['admin', 'staff'], true);
@@ -231,7 +237,7 @@ function username_is_valid(string $username): bool
     return (bool) preg_match('/^[a-z0-9._-]{3,32}$/', $username);
 }
 
-function create_user(string $username, string $displayName, string $role, int $weeklyHours, ?string $region): int
+function create_user(string $username, string $displayName, string $role, ?int $weeklyHours, ?string $region): int
 {
     db()->prepare('INSERT INTO users (username, display_name, role, weekly_hours, region, created_at) VALUES (?, ?, ?, ?, ?, ?)')
         ->execute([$username, $displayName, $role, $weeklyHours, $region, time()]);
