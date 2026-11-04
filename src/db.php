@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 /**
  * Returns the shared PDO connection; migrates the schema on first use.
@@ -32,6 +32,8 @@ function migrate(PDO $pdo): void
     if ((int) $pdo->query('PRAGMA user_version')->fetchColumn() === SCHEMA_VERSION) {
         return;
     }
+    // Table rebuilds (v3) require foreign key enforcement off; it cannot change inside a transaction.
+    $pdo->exec('PRAGMA foreign_keys = OFF');
     $pdo->exec('BEGIN IMMEDIATE');
     try {
         $version = (int) $pdo->query('PRAGMA user_version')->fetchColumn();
@@ -50,11 +52,42 @@ function migrate(PDO $pdo): void
                 CREATE INDEX idx_login_attempts_key ON login_attempts (attempt_key, created_at);
                 SQL);
         }
+        if ($version < 3) {
+            // SQLite cannot alter a CHECK constraint: rebuild the table to allow the 'staff' role.
+            $pdo->exec(<<<'SQL'
+                CREATE TABLE users_v3 (
+                    id INTEGER PRIMARY KEY,
+                    username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                    display_name TEXT NOT NULL,
+                    role TEXT NOT NULL CHECK (role IN ('admin', 'staff', 'user')),
+                    weekly_hours INTEGER NOT NULL CHECK (weekly_hours BETWEEN 1 AND 40),
+                    region TEXT,
+                    password_hash TEXT,
+                    totp_secret TEXT,
+                    totp_last_step INTEGER NOT NULL DEFAULT 0,
+                    session_version INTEGER NOT NULL DEFAULT 0,
+                    active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+                    created_at INTEGER NOT NULL,
+                    last_login_at INTEGER
+                ) STRICT;
+                INSERT INTO users_v3 (id, username, display_name, role, weekly_hours, region, password_hash, totp_secret,
+                                      totp_last_step, session_version, active, created_at, last_login_at)
+                SELECT id, username, display_name, role, weekly_hours, region, password_hash, totp_secret,
+                       totp_last_step, session_version, active, created_at, last_login_at FROM users;
+                DROP TABLE users;
+                ALTER TABLE users_v3 RENAME TO users;
+                SQL);
+            if ($pdo->query('PRAGMA foreign_key_check')->fetch() !== false) {
+                throw new RuntimeException('Foreign key violation after users table rebuild');
+            }
+        }
         $pdo->exec('PRAGMA user_version = ' . SCHEMA_VERSION);
         $pdo->exec('COMMIT');
     } catch (Throwable $e) {
         $pdo->exec('ROLLBACK');
         throw $e;
+    } finally {
+        $pdo->exec('PRAGMA foreign_keys = ON');
     }
 }
 

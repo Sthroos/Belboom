@@ -17,6 +17,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $displayName = text_field($_POST['display_name'] ?? null);
         $weeklyHours = int_in_range($_POST['weekly_hours'] ?? null, 1, 40);
         $region = parse_region($_POST['region'] ?? null);
+        $role = in_array($_POST['role'] ?? null, ASSIGNABLE_ROLES, true) ? $_POST['role'] : null;
+        if ($role === null) {
+            $errors[] = 'Kies een rol.';
+        }
         if (!username_is_valid($username)) {
             $errors[] = 'Gebruikersnaam: 3–32 tekens, alleen a-z, 0-9, punt, streepje of underscore.';
         }
@@ -37,7 +41,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             }
         }
         if ($errors === []) {
-            $newId = create_user($username, $displayName, 'user', $weeklyHours, $region);
+            $newId = create_user($username, $displayName, $role, $weeklyHours, $region);
             $_SESSION['invite_link'] = issue_invite($newId);
             log_event('info', 'user_created', ['admin_id' => (int) $admin['id'], 'user_id' => $newId]);
             redirect('/users.php');
@@ -88,7 +92,7 @@ if ($inviteLink !== null): ?>
     <tr>
       <td><?= e($row['display_name']) ?></td>
       <td><?= e($row['username']) ?></td>
-      <td><?= e($row['role']) ?></td>
+      <td><?= e(ROLE_LABELS[$row['role']]) ?></td>
       <td>
         <form method="post" action="/users.php" class="inline-row">
           <?= csrf_field() ?>
@@ -129,6 +133,12 @@ if ($inviteLink !== null): ?>
   <input type="hidden" name="action" value="create">
   <label>Naam <input name="display_name" maxlength="80" required></label>
   <label>Gebruikersnaam <input name="username" maxlength="32" pattern="[a-z0-9._\-]{3,32}" required></label>
+  <label>Rol
+    <select name="role" required>
+      <option value="user">Ambassadeur – registreren</option>
+      <option value="staff">Bureaumedewerker – registreren en statistieken inzien</option>
+    </select>
+  </label>
   <label>Regio (LHV-afdeling)
     <select name="region" required><option value="">Kies…</option><?php render_options(LHV_REGIONS, null); ?></select>
   </label>

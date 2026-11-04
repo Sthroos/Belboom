@@ -4,9 +4,15 @@ Registratie voor LHV-ambassadeurs om ledencontacten tijdens de pilot (1–2 maan
 gesprekstijd, overige tijd, soort contact/reden (startend, opzegging onvrede, opzegging neutraal), inhoud,
 energie-impact, meerwaarde, en of het ten koste ging van ander werk.
 
-- Ambassadeurs zien alleen hun eigen registraties.
-- Alleen de admin ziet statistieken (totaal, per soort, per regio, per ambassadeur vs. betaalde uren, per maand),
-  kan filteren op regio en exporteert CSV.
+Rollen:
+
+| Rol | Registreren | Statistieken + CSV-export | Gebruikers beheren |
+|---|---|---|---|
+| Ambassadeur | ja (alleen eigen registraties zichtbaar) | nee | nee |
+| Bureaumedewerker | ja | ja | nee |
+| Admin | ja | ja | ja (alleen via `bin/create-admin.php` aan te maken) |
+
+Statistieken: totaal, per soort, per regio, per medewerker vs. betaalde uren, per maand; filter op regio.
 - Elke gebruiker hoort bij een van de 19 LHV-afdelingen.
 
 PHP 8.4 + SQLite, geen externe dependencies, geen JavaScript.
