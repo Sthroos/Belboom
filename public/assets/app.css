@@ -10,7 +10,7 @@ body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-seri
 nav { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; }
 nav a, .link { color: var(--accent); text-decoration: none; background: none; border: 0; padding: 0; font: inherit; cursor: pointer; }
 .link.danger { color: var(--error); }
-main { max-width: 1100px; margin: 0 auto; padding: 1rem 1.25rem 3rem; }
+main { max-width: 1200px; margin: 0 auto; padding: 1rem 1.25rem 3rem; }
 h1 { font-size: 1.5rem; } h2 { font-size: 1.15rem; margin-top: 2rem; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
 .narrow { max-width: 480px; }
@@ -38,8 +38,15 @@ p.flash.error { padding-left: 1rem; }
 .contact header strong { color: var(--text); }
 .secret { font-family: ui-monospace, monospace; font-size: 1.1rem; letter-spacing: .05em; word-break: break-all; }
 .secret.small { font-size: .8rem; }
-.inline-row { display: flex; gap: .5rem; align-items: center; }
-.inline-row select { width: auto; margin-top: 0; }
+table.users td { vertical-align: middle; }
+table.users select, table.users input.hours { margin-top: 0; padding: .35rem .5rem; }
+table.users select[name="role"] { min-width: 10.5rem; }
+table.users select[name="region"] { min-width: 13rem; }
+table.users input.hours { width: 4.5rem; }
+td .sub { display: block; color: var(--muted); font-size: .85rem; }
+td.actions form { display: flex; flex-wrap: wrap; gap: .25rem .75rem; align-items: center; margin: 0; }
+td.actions form + form { margin-top: .35rem; }
+button.small:not(.link) { padding: .35rem .8rem; }
 .filter { display: flex; gap: .75rem; align-items: flex-end; margin-bottom: 1rem; }
 .filter label { margin-bottom: 0; }
 .filter select { width: auto; }

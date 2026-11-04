@@ -6,6 +6,15 @@ require __DIR__ . '/../src/bootstrap.php';
 $admin = require_admin();
 $errors = [];
 
+/** @return string|null role to store; admins keep their role, others must get an assignable role. */
+function resolve_role(string $currentRole, mixed $requested): ?string
+{
+    if ($currentRole === 'admin') {
+        return 'admin';
+    }
+    return in_array($requested, ASSIGNABLE_ROLES, true) ? $requested : null;
+}
+
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     require_valid_post();
     $action = $_POST['action'] ?? '';
@@ -17,7 +26,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $displayName = text_field($_POST['display_name'] ?? null);
         $weeklyHours = int_in_range($_POST['weekly_hours'] ?? null, 1, 40);
         $region = parse_region($_POST['region'] ?? null);
-        $role = in_array($_POST['role'] ?? null, ASSIGNABLE_ROLES, true) ? $_POST['role'] : null;
+        $role = resolve_role('user', $_POST['role'] ?? null);
         if ($role === null) {
             $errors[] = 'Kies een rol.';
         }
@@ -46,14 +55,21 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             log_event('info', 'user_created', ['admin_id' => (int) $admin['id'], 'user_id' => $newId]);
             redirect('/users.php');
         }
-    } elseif ($action === 'set_region' && $targetId !== null) {
+    } elseif ($action === 'update' && $targetId !== null) {
+        $stmt = db()->prepare('SELECT role FROM users WHERE id = ?');
+        $stmt->execute([$targetId]);
+        $currentRole = $stmt->fetchColumn();
+        $role = $currentRole === false ? null : resolve_role($currentRole, $_POST['role'] ?? null);
         $region = parse_region($_POST['region'] ?? null);
-        if ($region === null) {
-            $errors[] = 'Kies een geldige regio.';
+        $weeklyHours = int_in_range($_POST['weekly_hours'] ?? null, 1, 40);
+        if ($role === null || $region === null || $weeklyHours === null) {
+            $errors[] = 'Ongeldige rol, regio of uren (1–40).';
         } else {
-            db()->prepare('UPDATE users SET region = ? WHERE id = ?')->execute([$region, $targetId]);
-            log_event('info', 'user_set_region', ['admin_id' => (int) $admin['id'], 'user_id' => $targetId]);
-            flash('ok', 'Regio bijgewerkt.');
+            // Role is read from the database on every request, so a change takes effect immediately.
+            db()->prepare('UPDATE users SET role = ?, region = ?, weekly_hours = ? WHERE id = ?')
+                ->execute([$role, $region, $weeklyHours, $targetId]);
+            log_event('info', 'user_updated', ['admin_id' => (int) $admin['id'], 'user_id' => $targetId, 'role' => $role]);
+            flash('ok', 'Gebruiker bijgewerkt.');
             redirect('/users.php');
         }
     } elseif ($targetId !== null && !$isSelf && in_array($action, ['reinvite', 'deactivate', 'activate'], true)) {
@@ -74,7 +90,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 $inviteLink = $_SESSION['invite_link'] ?? null;
 unset($_SESSION['invite_link']);
 $users = db()->query('SELECT id, username, display_name, role, weekly_hours, region, active, last_login_at,
-                      password_hash IS NOT NULL AS activated FROM users ORDER BY id')->fetchAll();
+                      password_hash IS NOT NULL AS activated FROM users ORDER BY role = \'admin\' DESC, display_name')->fetchAll();
+$assignableRoleLabels = array_intersect_key(ROLE_LABELS, array_flip(ASSIGNABLE_ROLES));
 
 render_header('Gebruikers', $admin);
 render_errors($errors);
@@ -85,34 +102,47 @@ if ($inviteLink !== null): ?>
 </div>
 <?php endif; ?>
 <div class="table-wrap">
-<table>
-  <thead><tr><th>Naam</th><th>Gebruikersnaam</th><th>Rol</th><th>Regio</th><th>Uren/week</th><th>Status</th><th>Laatst ingelogd</th><th></th></tr></thead>
+<table class="users">
+  <thead><tr><th>Gebruiker</th><th>Rol</th><th>Regio</th><th>Uren/week</th><th>Status</th><th>Acties</th></tr></thead>
   <tbody>
-  <?php foreach ($users as $row): ?>
+  <?php foreach ($users as $row):
+      $id = (int) $row['id'];
+      $formId = 'edit-' . $id;
+      $status = (int) $row['active'] === 0 ? 'gedeactiveerd' : ((int) $row['activated'] === 1 ? 'actief' : 'uitnodiging open'); ?>
     <tr>
-      <td><?= e($row['display_name']) ?></td>
-      <td><?= e($row['username']) ?></td>
-      <td><?= e(ROLE_LABELS[$row['role']]) ?></td>
       <td>
-        <form method="post" action="/users.php" class="inline-row">
-          <?= csrf_field() ?>
-          <input type="hidden" name="action" value="set_region">
-          <input type="hidden" name="user_id" value="<?= e((int) $row['id']) ?>">
-          <select name="region" required>
-            <?php if ($row['region'] === null): ?><option value="">Kies…</option><?php endif; ?>
-            <?php render_options(LHV_REGIONS, $row['region']); ?>
-          </select>
-          <button type="submit" class="link">Opslaan</button>
-        </form>
+        <strong><?= e($row['display_name']) ?></strong>
+        <span class="sub"><?= e($row['username']) ?></span>
       </td>
-      <td><?= e((int) $row['weekly_hours']) ?></td>
-      <td><?= (int) $row['active'] === 0 ? 'gedeactiveerd' : ((int) $row['activated'] === 1 ? 'actief' : 'uitnodiging open') ?></td>
-      <td><?= e($row['last_login_at'] === null ? '–' : date('Y-m-d H:i', (int) $row['last_login_at'])) ?></td>
       <td>
-        <?php if ((int) $row['id'] !== (int) $admin['id']): ?>
-        <form method="post" action="/users.php" class="inline">
-          <?= csrf_field() ?><input type="hidden" name="user_id" value="<?= e((int) $row['id']) ?>">
-          <button name="action" value="reinvite" class="link">Nieuwe uitnodiging (reset)</button>
+        <?php if ($row['role'] === 'admin'): ?>
+          <?= e(ROLE_LABELS['admin']) ?>
+        <?php else: ?>
+          <select name="role" form="<?= e($formId) ?>" aria-label="Rol"><?php render_options($assignableRoleLabels, $row['role']); ?></select>
+        <?php endif; ?>
+      </td>
+      <td>
+        <select name="region" form="<?= e($formId) ?>" aria-label="Regio" required>
+          <?php if ($row['region'] === null): ?><option value="">Kies…</option><?php endif; ?>
+          <?php render_options(LHV_REGIONS, $row['region']); ?>
+        </select>
+      </td>
+      <td><input type="number" name="weekly_hours" form="<?= e($formId) ?>" aria-label="Uren per week" min="1" max="40" value="<?= e((int) $row['weekly_hours']) ?>" required class="hours"></td>
+      <td>
+        <?= e($status) ?>
+        <span class="sub"><?= e($row['last_login_at'] === null ? 'nooit ingelogd' : date('d-m-Y H:i', (int) $row['last_login_at'])) ?></span>
+      </td>
+      <td class="actions">
+        <form method="post" action="/users.php" id="<?= e($formId) ?>">
+          <?= csrf_field() ?>
+          <input type="hidden" name="action" value="update">
+          <input type="hidden" name="user_id" value="<?= e($id) ?>">
+          <button type="submit" class="small">Opslaan</button>
+        </form>
+        <?php if ($id !== (int) $admin['id']): ?>
+        <form method="post" action="/users.php">
+          <?= csrf_field() ?><input type="hidden" name="user_id" value="<?= e($id) ?>">
+          <button name="action" value="reinvite" class="link">Nieuwe uitnodiging</button>
           <?php if ((int) $row['active'] === 1): ?>
           <button name="action" value="deactivate" class="link danger">Deactiveren</button>
           <?php else: ?>
@@ -126,6 +156,7 @@ if ($inviteLink !== null): ?>
   </tbody>
 </table>
 </div>
+<p class="hint">"Nieuwe uitnodiging" wist wachtwoord en 2FA van de gebruiker en logt hem uit.</p>
 
 <h2>Gebruiker toevoegen</h2>
 <form method="post" action="/users.php" class="card narrow">
