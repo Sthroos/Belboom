@@ -12,7 +12,16 @@ Rollen:
 | Bureaumedewerker | ja | ja | nee |
 | Admin | ja | ja | ja (alleen via `bin/create-admin.php` aan te maken) |
 
-Statistieken: totaal, per soort, per regio, per medewerker vs. betaalde uren, per maand; filter op regio.
+Per registratie: soort contact, uitkomst (bereikt / voicemail / niet bereikt), opzegreden (bij opzeggend lid),
+vervolgactie (geen / zelf / regiobureau / ledenadministratie / bestuur), tijd, energie en meerwaarde (alleen bij
+gevoerd gesprek), inhoud en indruk. Eigen registraties zijn te bewerken en te verwijderen.
+
+Statistieken en evaluatierapport (admin + bureaumedewerker): filter op regio en periode; per soort, uitkomst,
+opzegreden, vervolgactie, regio, medewerker (vs. betaalde uren) en maand. Het rapport (`/report.php`) is printbaar
+als PDF en bevat automatisch berekende kernbevindingen en geanonimiseerde indrukken.
+
+Logboek (admin, `/audit.php`): inloggen, mislukte/geblokkeerde pogingen, gebruikersbeheer, exports en
+wijzigingen/verwijderingen van registraties; 180 dagen bewaard.
 - Elke gebruiker hoort bij een van de 19 LHV-afdelingen.
 
 PHP 8.4 + SQLite, geen externe dependencies, geen JavaScript.

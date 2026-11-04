@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 /**
  * Returns the shared PDO connection; migrates the schema on first use.
@@ -106,6 +106,57 @@ function migrate(PDO $pdo): void
                 FROM users;
                 DROP TABLE users;
                 ALTER TABLE users_v4 RENAME TO users;
+                SQL);
+        }
+        if ($version < 5) {
+            // Outcome, cancel reason and follow-up; energy/value only required for reached calls,
+            // so failed attempts (0 call minutes) can be registered. Existing rows were all reached calls.
+            $pdo->exec(<<<'SQL'
+                CREATE TABLE contacts_v5 (
+                    id INTEGER PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES users(id),
+                    contact_date TEXT NOT NULL,
+                    category TEXT NOT NULL CHECK (category IN ('start', 'opzeg_onvrede', 'opzeg_neutraal', 'overig')),
+                    outcome TEXT NOT NULL CHECK (outcome IN ('bereikt', 'voicemail', 'niet_bereikt')),
+                    cancel_reason TEXT CHECK (cancel_reason IS NULL OR (
+                        category IN ('opzeg_onvrede', 'opzeg_neutraal') AND cancel_reason IN (
+                            'pensioen', 'verhuizing', 'werkvorm', 'contributie', 'onvrede_dienstverlening',
+                            'onvrede_standpunt', 'andere_vereniging', 'geen_reden', 'overig'))
+                    ),
+                    follow_up TEXT CHECK (follow_up IS NULL OR follow_up IN (
+                        'geen', 'zelf', 'bureau', 'ledenadministratie', 'bestuur')),
+                    call_minutes INTEGER NOT NULL CHECK (call_minutes BETWEEN 0 AND 240),
+                    extra_minutes INTEGER NOT NULL CHECK (extra_minutes BETWEEN 0 AND 240),
+                    energy INTEGER CHECK (energy IS NULL OR energy BETWEEN -2 AND 2),
+                    value_score INTEGER CHECK (value_score IS NULL OR value_score BETWEEN 1 AND 5),
+                    displaced_work INTEGER NOT NULL CHECK (displaced_work IN (0, 1)),
+                    content TEXT NOT NULL,
+                    impression TEXT NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    updated_at INTEGER,
+                    CHECK (call_minutes + extra_minutes >= 1),
+                    CHECK (outcome <> 'bereikt' OR (energy IS NOT NULL AND value_score IS NOT NULL))
+                ) STRICT;
+                INSERT INTO contacts_v5 (id, user_id, contact_date, category, outcome, cancel_reason, follow_up,
+                                         call_minutes, extra_minutes, energy, value_score, displaced_work,
+                                         content, impression, created_at)
+                SELECT id, user_id, contact_date, category, 'bereikt', NULL, NULL,
+                       call_minutes, extra_minutes, energy, value_score, displaced_work, content, impression, created_at
+                FROM contacts;
+                DROP TABLE contacts;
+                ALTER TABLE contacts_v5 RENAME TO contacts;
+                CREATE INDEX idx_contacts_date ON contacts (contact_date);
+
+                CREATE TABLE audit_log (
+                    id INTEGER PRIMARY KEY,
+                    created_at INTEGER NOT NULL,
+                    event TEXT NOT NULL,
+                    actor_user_id INTEGER,
+                    target_user_id INTEGER,
+                    ip TEXT,
+                    detail TEXT
+                ) STRICT;
+                CREATE INDEX idx_audit_log_created ON audit_log (created_at);
                 SQL);
         }
         if ($pdo->query('PRAGMA foreign_key_check')->fetch() !== false) {

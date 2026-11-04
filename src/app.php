@@ -5,8 +5,11 @@ require __DIR__ . '/db.php';
 require __DIR__ . '/regions.php';
 require __DIR__ . '/totp.php';
 require __DIR__ . '/auth.php';
+require __DIR__ . '/audit.php';
 require __DIR__ . '/contacts.php';
+require __DIR__ . '/contact_form.php';
 require __DIR__ . '/view.php';
+require __DIR__ . '/stats_view.php';
 
 /**
  * Reads and validates required environment configuration once.
