@@ -90,15 +90,15 @@ render_header('Statistieken' . ($region === null ? '' : ' · ' . region_label($r
   <?php foreach ($byUser as $row):
       $minutes = (int) $row['call_min'] + (int) $row['extra_min'];
       $perWeek = $minutes / $weeks;
-      $share = $perWeek / ((int) $row['weekly_hours'] * 60) * 100; ?>
+      $share = $row['weekly_hours'] === null ? null : $perWeek / ((int) $row['weekly_hours'] * 60) * 100; ?>
     <tr>
       <td><?= e($row['display_name']) ?></td>
       <td><?= e(region_label($row['region'])) ?></td>
-      <td><?= e((int) $row['weekly_hours']) ?></td>
+      <td><?= e($row['weekly_hours'] ?? '–') ?></td>
       <td><?= e((int) $row['n']) ?></td>
       <td><?= e(fmt_minutes($minutes)) ?></td>
       <td><?= e(fmt_number($perWeek, 0)) ?></td>
-      <td><meter min="0" max="100" high="10" optimum="0" value="<?= e(min($share, 100)) ?>"></meter> <?= e(fmt_number($share)) ?>%</td>
+      <td><?php if ($share === null): ?>n.v.t.<?php else: ?><meter min="0" max="100" high="10" optimum="0" value="<?= e(min($share, 100)) ?>"></meter> <?= e(fmt_number($share)) ?>%<?php endif; ?></td>
     </tr>
   <?php endforeach; ?>
   </tbody>
