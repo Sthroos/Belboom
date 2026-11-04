@@ -12,7 +12,7 @@ render_header('Mijn registraties', $user);
 <?php foreach ($contacts as $row): ?>
 <article class="card contact">
   <header>
-    <strong><?= e(CONTACT_CATEGORIES[$row['category']]) ?></strong> · <?= e(contact_summary($row)) ?>
+    <strong><?= e(category_label($row)) ?></strong> · <?= e(contact_summary($row)) ?>
     <?php if ($row['updated_at'] !== null): ?><span class="sub-inline">(bewerkt)</span><?php endif; ?>
   </header>
   <?php if ($row['content'] !== ''): ?><p class="pre"><?= e($row['content']) ?></p><?php endif; ?>

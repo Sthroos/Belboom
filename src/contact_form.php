@@ -12,25 +12,35 @@ function render_contact_form(array $data, string $action, string $submitLabel, D
     <label>Datum contact
       <input type="date" name="contact_date" value="<?= e($data['contact_date']) ?>" max="<?= e($today->format('Y-m-d')) ?>" required>
     </label>
-    <label>Soort contact
-      <select name="category" required><option value="">Kies…</option><?php render_options(CONTACT_CATEGORIES, $data['category']); ?></select>
-    </label>
+    <div>
+      <label>Soort contact
+        <select name="category" required><option value="">Kies…</option><?php render_options(CONTACT_CATEGORIES, $data['category']); ?></select>
+      </label>
+      <label class="other-field other-category">Omschrijving <span class="sub-inline">(bij overig, max. <?= CATEGORY_OTHER_MAX ?> tekens)</span>
+        <input name="category_other" maxlength="<?= CATEGORY_OTHER_MAX ?>" size="30" class="narrow-input" value="<?= e($data['category_other'] ?? '') ?>">
+      </label>
+    </div>
     <label>Uitkomst belpoging
       <select name="outcome" required><option value="">Kies…</option><?php render_options(OUTCOMES, $data['outcome']); ?></select>
     </label>
-    <label>Opzegreden <span class="sub-inline">(alleen bij opzeggend lid)</span>
-      <select name="cancel_reason"><option value="">n.v.t.</option><?php render_options(CANCEL_REASONS, $data['cancel_reason']); ?></select>
+    <div class="cancel-block">
+      <label>Opzegreden
+        <select name="cancel_reason"><option value="">n.v.t.</option><?php render_options(CANCEL_REASONS, $data['cancel_reason']); ?></select>
+      </label>
+      <label class="other-field other-reason">Toelichting <span class="sub-inline">(bij overig, max. <?= CANCEL_REASON_OTHER_MAX ?> tekens)</span>
+        <input name="cancel_reason_other" maxlength="<?= CANCEL_REASON_OTHER_MAX ?>" value="<?= e($data['cancel_reason_other'] ?? '') ?>">
+      </label>
+    </div>
+    <label class="reached-only">Gesprekstijd (minuten)
+      <input type="number" name="call_minutes" min="0" max="240" value="<?= e($data['call_minutes']) ?>">
     </label>
-    <label>Gesprekstijd (minuten, 0 bij niet bereikt)
-      <input type="number" name="call_minutes" min="0" max="240" value="<?= e($data['call_minutes']) ?>" required>
-    </label>
-    <label>Overige tijd: voorbereiden, terugbellen, verslag (minuten)
+    <label>Overige tijd (minuten) <span class="sub-inline">voorbereiden, verslag; bij geen gesprek ook de tijd van de belpoging</span>
       <input type="number" name="extra_minutes" min="0" max="240" value="<?= e($data['extra_minutes']) ?>" required>
     </label>
-    <label>Energie-impact <span class="sub-inline">(bij gevoerd gesprek)</span>
+    <label class="reached-only">Energie-impact
       <select name="energy"><option value="">n.v.t.</option><?php render_options(ENERGY_LABELS, $data['energy']); ?></select>
     </label>
-    <label>Meerwaarde van dit contact <span class="sub-inline">(bij gevoerd gesprek)</span>
+    <label class="reached-only">Meerwaarde van dit contact
       <select name="value_score"><option value="">n.v.t.</option><?php render_options(VALUE_LABELS, $data['value_score']); ?></select>
     </label>
     <label>Vervolgactie nodig door
@@ -51,6 +61,11 @@ function render_contact_form(array $data, string $action, string $submitLabel, D
 <?php
 }
 
+function category_label(array $row): string
+{
+    return CONTACT_CATEGORIES[$row['category']] . ($row['category_other'] === null ? '' : ': ' . $row['category_other']);
+}
+
 /** One-line summary of a registration for lists. */
 function contact_summary(array $row): string
 {
@@ -60,7 +75,8 @@ function contact_summary(array $row): string
         (int) $row['call_minutes'] . ' + ' . (int) $row['extra_minutes'] . ' min',
     ];
     if ($row['cancel_reason'] !== null) {
-        $parts[] = 'reden: ' . CANCEL_REASONS[$row['cancel_reason']];
+        $parts[] = 'reden: ' . CANCEL_REASONS[$row['cancel_reason']]
+            . ($row['cancel_reason_other'] === null ? '' : ' (' . $row['cancel_reason_other'] . ')');
     }
     if ($row['energy'] !== null) {
         $parts[] = ENERGY_LABELS[(int) $row['energy']];

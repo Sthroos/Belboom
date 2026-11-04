@@ -69,6 +69,7 @@ render_filter_form('/report.php', $filter);
 <div class="report-section">
 <h2>Per soort contact</h2>
 <?php render_grouped_table('Soort', CONTACT_CATEGORIES, $byCategory); ?>
+<?php render_other_explanations('Omschrijvingen bij "Overig":', other_explanations('category_other', $filter, 50)); ?>
 </div>
 <div class="report-section">
 <h2>Uitkomst belpogingen</h2>
@@ -77,6 +78,7 @@ render_filter_form('/report.php', $filter);
 <div class="report-section">
 <h2>Opzegredenen</h2>
 <?php render_grouped_table('Reden', CANCEL_REASONS, $byReason); ?>
+<?php render_other_explanations('Toelichtingen bij "Overig":', other_explanations('cancel_reason_other', $filter, 50)); ?>
 </div>
 <div class="report-section">
 <h2>Vervolgacties</h2>

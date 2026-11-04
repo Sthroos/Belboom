@@ -19,12 +19,14 @@ render_filter_form('/stats.php', $filter);
 
 <h2>Per soort contact</h2>
 <?php render_grouped_table('Soort', CONTACT_CATEGORIES, stats_grouped('category', CONTACT_CATEGORIES, $filter)); ?>
+<?php render_other_explanations('Omschrijvingen bij "Overig":', other_explanations('category_other', $filter, 50)); ?>
 
 <h2>Uitkomst belpogingen</h2>
 <?php render_grouped_table('Uitkomst', OUTCOMES, stats_grouped('outcome', OUTCOMES, $filter), false); ?>
 
 <h2>Opzegredenen</h2>
 <?php render_grouped_table('Reden', CANCEL_REASONS, stats_grouped('cancel_reason', CANCEL_REASONS, $filter)); ?>
+<?php render_other_explanations('Toelichtingen bij "Overig":', other_explanations('cancel_reason_other', $filter, 50)); ?>
 
 <h2>Vervolgacties</h2>
 <?php render_grouped_table('Vervolgactie door', FOLLOW_UPS, stats_grouped('follow_up', FOLLOW_UPS, $filter), false); ?>
@@ -79,7 +81,7 @@ render_filter_form('/stats.php', $filter);
 <?php foreach ($recent as $row): ?>
 <article class="card contact">
   <header>
-    <strong><?= e(CONTACT_CATEGORIES[$row['category']]) ?></strong>
+    <strong><?= e(category_label($row)) ?></strong>
     · <?= e($row['display_name']) ?> (<?= e(region_label($row['region'])) ?>) · <?= e(contact_summary($row)) ?>
   </header>
   <?php if ($row['content'] !== ''): ?><p class="pre"><?= e($row['content']) ?></p><?php endif; ?>

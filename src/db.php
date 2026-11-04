@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 /**
  * Returns the shared PDO connection; migrates the schema on first use.
@@ -157,6 +157,15 @@ function migrate(PDO $pdo): void
                     detail TEXT
                 ) STRICT;
                 CREATE INDEX idx_audit_log_created ON audit_log (created_at);
+                SQL);
+        }
+        if ($version < 6) {
+            // Short free-text explanation, only allowed when "Overig" is chosen.
+            $pdo->exec(<<<'SQL'
+                ALTER TABLE contacts ADD COLUMN category_other TEXT
+                    CHECK (category_other IS NULL OR (category = 'overig' AND length(category_other) BETWEEN 1 AND 60));
+                ALTER TABLE contacts ADD COLUMN cancel_reason_other TEXT
+                    CHECK (cancel_reason_other IS NULL OR (cancel_reason = 'overig' AND length(cancel_reason_other) BETWEEN 1 AND 150));
                 SQL);
         }
         if ($pdo->query('PRAGMA foreign_key_check')->fetch() !== false) {

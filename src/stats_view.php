@@ -93,6 +93,20 @@ function render_grouped_table(string $firstHeader, array $labels, array $rows, b
 <?php
 }
 
+/** @param list<array{text: string, n: int}> $items */
+function render_other_explanations(string $title, array $items): void
+{
+    if ($items === []) {
+        return;
+    }
+    ?>
+<p class="other-list-title"><?= e($title) ?></p>
+<ul class="other-list">
+  <?php foreach ($items as $item): ?><li><?= e($item['text']) ?><?php if ((int) $item['n'] > 1): ?> <span class="sub-inline">(<?= e((int) $item['n']) ?>×)</span><?php endif; ?></li><?php endforeach; ?>
+</ul>
+<?php
+}
+
 function render_user_load_table(array $byUser, float $weeks): void
 {
     ?>
