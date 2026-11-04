@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../src/bootstrap.php';
 
-$admin = require_admin();
+$viewer = require_stats_access();
 $region = parse_region($_GET['regio'] ?? null);
 $today = new DateTimeImmutable('today');
 $total = stats_total($region);
@@ -16,7 +16,7 @@ $count = (int) $total['n'];
 $totalMinutes = (int) $total['call_min'] + (int) $total['extra_min'];
 $weeks = pilot_weeks($total['first_date'], $today);
 
-render_header('Statistieken' . ($region === null ? '' : ' · ' . region_label($region)), $admin);
+render_header('Statistieken' . ($region === null ? '' : ' · ' . region_label($region)), $viewer);
 ?>
 <form method="get" action="/stats.php" class="filter">
   <label>Regio
@@ -64,7 +64,7 @@ render_header('Statistieken' . ($region === null ? '' : ' · ' . region_label($r
 <h2>Per regio</h2>
 <div class="table-wrap">
 <table>
-  <thead><tr><th>Regio</th><th>Ambassadeurs</th><th>Contacten</th><th>Tijd totaal</th><th>Energie</th><th>Meerwaarde</th></tr></thead>
+  <thead><tr><th>Regio</th><th>Medewerkers</th><th>Contacten</th><th>Tijd totaal</th><th>Energie</th><th>Meerwaarde</th></tr></thead>
   <tbody>
   <?php foreach ($byRegion as $row): ?>
     <tr>
@@ -81,11 +81,11 @@ render_header('Statistieken' . ($region === null ? '' : ' · ' . region_label($r
 </div>
 <?php endif; ?>
 
-<h2>Tijdsbelasting per ambassadeur</h2>
+<h2>Tijdsbelasting per medewerker</h2>
 <p class="hint">Gemiddelde tijd per week sinds de eerste registratie (<?= e(fmt_number($weeks)) ?> weken), afgezet tegen de betaalde uren per week.</p>
 <div class="table-wrap">
 <table>
-  <thead><tr><th>Ambassadeur</th><th>Regio</th><th>Betaalde uren/week</th><th>Contacten</th><th>Tijd totaal</th><th>Min/week</th><th>% van betaalde uren</th></tr></thead>
+  <thead><tr><th>Medewerker</th><th>Regio</th><th>Betaalde uren/week</th><th>Contacten</th><th>Tijd totaal</th><th>Min/week</th><th>% van betaalde uren</th></tr></thead>
   <tbody>
   <?php foreach ($byUser as $row):
       $minutes = (int) $row['call_min'] + (int) $row['extra_min'];

@@ -105,6 +105,30 @@ function require_login(): array
     return $user;
 }
 
+const ROLE_LABELS = [
+    'admin' => 'Admin',
+    'staff' => 'Bureaumedewerker',
+    'user' => 'Ambassadeur',
+];
+// Roles an admin may assign in the UI; admins are only created via bin/create-admin.php.
+const ASSIGNABLE_ROLES = ['user', 'staff'];
+
+function can_view_stats(array $user): bool
+{
+    return in_array($user['role'], ['admin', 'staff'], true);
+}
+
+/** @return array<string, mixed> logged-in admin or bureau staff; 403 otherwise. */
+function require_stats_access(): array
+{
+    $user = require_login();
+    if (!can_view_stats($user)) {
+        http_response_code(403);
+        exit('Geen toegang.');
+    }
+    return $user;
+}
+
 /** @return array<string, mixed> */
 function require_admin(): array
 {

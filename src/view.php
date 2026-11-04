@@ -61,11 +61,11 @@ function render_header(string $title, ?array $user): void
   <nav>
     <a href="/">Mijn registraties</a>
     <a href="/contact-new.php">Contact registreren</a>
-    <?php if ($user['role'] === 'admin'): ?>
+    <?php if (can_view_stats($user)): ?>
     <a href="/stats.php">Statistieken</a>
     <a href="/export.php">Export CSV</a>
-    <a href="/users.php">Gebruikers</a>
     <?php endif; ?>
+    <?php if ($user['role'] === 'admin'): ?><a href="/users.php">Gebruikers</a><?php endif; ?>
     <a href="/password.php">Wachtwoord</a>
     <form method="post" action="/logout.php" class="inline">
       <?= csrf_field() ?>

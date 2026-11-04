@@ -3,8 +3,8 @@ declare(strict_types=1);
 
 require __DIR__ . '/../src/bootstrap.php';
 
-$admin = require_admin();
-log_event('info', 'export_csv', ['user_id' => (int) $admin['id']]);
+$viewer = require_stats_access();
+log_event('info', 'export_csv', ['user_id' => (int) $viewer['id']]);
 
 header('Content-Type: text/csv; charset=utf-8');
 header('Content-Disposition: attachment; filename="ledencontact-' . date('Y-m-d') . '.csv"');
