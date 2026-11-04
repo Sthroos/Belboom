@@ -46,6 +46,8 @@ const VALUE_LABELS = [
     4 => 'Duidelijke meerwaarde',
     5 => 'Grote meerwaarde',
 ];
+const CATEGORY_OTHER_MAX = 60;
+const CANCEL_REASON_OTHER_MAX = 150;
 const CONTENT_MAX = 2000;
 const IMPRESSION_MAX = 1000;
 
@@ -82,7 +84,8 @@ function option_key(mixed $value, array $options): ?string
 function empty_contact(DateTimeImmutable $today): array
 {
     return [
-        'contact_date' => $today->format('Y-m-d'), 'category' => null, 'outcome' => null, 'cancel_reason' => null,
+        'contact_date' => $today->format('Y-m-d'), 'category' => null, 'category_other' => '', 'outcome' => null,
+        'cancel_reason' => null, 'cancel_reason_other' => '',
         'follow_up' => null, 'call_minutes' => '', 'extra_minutes' => '0', 'energy' => null, 'value_score' => null,
         'displaced_work' => null, 'content' => '', 'impression' => '',
     ];
@@ -106,6 +109,10 @@ function validate_contact(array $input, DateTimeImmutable $today): array
     if ($category === null) {
         $errors[] = 'Kies een soort contact.';
     }
+    $categoryOther = $category === 'overig' ? text_field($input['category_other'] ?? null) : '';
+    if ($category === 'overig' && ($categoryOther === '' || mb_strlen($categoryOther) > CATEGORY_OTHER_MAX)) {
+        $errors[] = 'Geef bij soort contact "Overig" een korte omschrijving (maximaal ' . CATEGORY_OTHER_MAX . ' tekens).';
+    }
     $outcome = option_key($input['outcome'] ?? null, OUTCOMES);
     if ($outcome === null) {
         $errors[] = 'Kies de uitkomst van de belpoging.';
@@ -115,6 +122,10 @@ function validate_contact(array $input, DateTimeImmutable $today): array
     $cancelReason = $isCancel ? option_key($input['cancel_reason'] ?? null, CANCEL_REASONS) : null;
     if ($isCancel && $cancelReason === null) {
         $errors[] = 'Kies de opzegreden (kies "Geen reden gegeven" als het lid niets zei of niet bereikt is).';
+    }
+    $reasonOther = $cancelReason === 'overig' ? text_field($input['cancel_reason_other'] ?? null) : '';
+    if ($cancelReason === 'overig' && ($reasonOther === '' || mb_strlen($reasonOther) > CANCEL_REASON_OTHER_MAX)) {
+        $errors[] = 'Geef bij opzegreden "Overig" een korte toelichting (maximaal ' . CANCEL_REASON_OTHER_MAX . ' tekens).';
     }
     $followUp = option_key($input['follow_up'] ?? null, FOLLOW_UPS);
     if ($followUp === null) {
@@ -146,8 +157,11 @@ function validate_contact(array $input, DateTimeImmutable $today): array
     $data = [
         'contact_date' => $date ?? text_field($input['contact_date'] ?? null),
         'category' => $category,
+        // Stored as NULL when not applicable; the CHECK constraint forbids text without "Overig".
+        'category_other' => $categoryOther === '' ? null : $categoryOther,
         'outcome' => $outcome,
         'cancel_reason' => $cancelReason,
+        'cancel_reason_other' => $reasonOther === '' ? null : $reasonOther,
         'follow_up' => $followUp,
         'call_minutes' => $callMinutes ?? 0,
         'extra_minutes' => $extraMinutes ?? 0,
@@ -160,7 +174,8 @@ function validate_contact(array $input, DateTimeImmutable $today): array
     return [$data, $errors];
 }
 
-const CONTACT_WRITE_COLUMNS = ['contact_date', 'category', 'outcome', 'cancel_reason', 'follow_up', 'call_minutes',
+const CONTACT_WRITE_COLUMNS = ['contact_date', 'category', 'category_other', 'outcome', 'cancel_reason',
+    'cancel_reason_other', 'follow_up', 'call_minutes',
     'extra_minutes', 'energy', 'value_score', 'displaced_work', 'content', 'impression'];
 
 function contact_values(array $data): array
@@ -296,6 +311,22 @@ function recent_contacts(array $filter, int $limit): array
 {
     $stmt = db()->prepare('SELECT c.*, u.display_name, u.region ' . CONTACTS_FROM
         . ' ORDER BY c.contact_date DESC, c.id DESC LIMIT :limit');
+    $stmt->execute(['region' => $filter['region'], 'from' => $filter['from'], 'to' => $filter['to'], 'limit' => $limit]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Explanations given with "Overig", grouped case-insensitively so recurring answers stand out.
+ *
+ * @return list<array{text: string, n: int}>
+ */
+function other_explanations(string $column, array $filter, int $limit): array
+{
+    if (!in_array($column, ['category_other', 'cancel_reason_other'], true)) {
+        throw new LogicException('Column has no explanations');
+    }
+    $stmt = db()->prepare("SELECT MIN(c.{$column}) AS text, COUNT(*) AS n " . CONTACTS_FROM
+        . " AND c.{$column} IS NOT NULL GROUP BY lower(c.{$column}) ORDER BY n DESC, text LIMIT :limit");
     $stmt->execute(['region' => $filter['region'], 'from' => $filter['from'], 'to' => $filter['to'], 'limit' => $limit]);
     return $stmt->fetchAll();
 }

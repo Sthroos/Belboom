@@ -84,3 +84,14 @@ tr.warn td { color: var(--error); }
   h2 { break-after: avoid; }
   a { color: inherit; text-decoration: none; }
 }
+/* "Overig" explanation fields: shown only when Overig is selected (CSS :has, no JavaScript). */
+.other-field { display: none; margin-top: .6rem; }
+form:has(select[name="category"] option[value="overig"]:checked) .other-category,
+form:has(select[name="cancel_reason"] option[value="overig"]:checked) .other-reason { display: block; }
+/* Cancel reason only for cancelling members; the server discards it for other categories anyway. */
+.cancel-block { display: none; }
+form:has(select[name="category"] option[value^="opzeg_"]:checked) .cancel-block { display: block; }
+@supports not selector(:has(*)) { .other-field, .cancel-block { display: block; } }
+.narrow-input { max-width: 22rem; }
+.other-list-title { margin: .75rem 0 .25rem; font-weight: 600; }
+.other-list { margin: 0 0 1rem; }
