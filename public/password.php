@@ -29,7 +29,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         clear_login_attempts($user['username']);
         $user['session_version'] = (int) $user['session_version'] + 1;
         establish_login_session($user);
-        log_event('info', 'password_changed', ['user_id' => (int) $user['id']]);
+        audit('password_changed', (int) $user['id'], (int) $user['id']);
         flash('ok', 'Wachtwoord gewijzigd. Andere sessies zijn uitgelogd.');
         redirect('/');
     }

@@ -55,7 +55,7 @@ function render_header(string $title, ?array $user): void
 <link rel="stylesheet" href="/assets/app.css">
 </head>
 <body>
-<header class="top">
+<header class="top no-print">
   <span class="brand">Ledencontact · pilot</span>
   <?php if ($user !== null): ?>
   <nav>
@@ -63,9 +63,10 @@ function render_header(string $title, ?array $user): void
     <a href="/contact-new.php">Contact registreren</a>
     <?php if (can_view_stats($user)): ?>
     <a href="/stats.php">Statistieken</a>
+    <a href="/report.php">Rapport</a>
     <a href="/export.php">Export CSV</a>
     <?php endif; ?>
-    <?php if ($user['role'] === 'admin'): ?><a href="/users.php">Gebruikers</a><?php endif; ?>
+    <?php if ($user['role'] === 'admin'): ?><a href="/users.php">Gebruikers</a><a href="/audit.php">Logboek</a><?php endif; ?>
     <a href="/password.php">Wachtwoord</a>
     <form method="post" action="/logout.php" class="inline">
       <?= csrf_field() ?>

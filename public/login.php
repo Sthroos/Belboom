@@ -26,12 +26,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $username = text_field($_POST['username'] ?? null);
         $password = is_string($_POST['password'] ?? null) ? $_POST['password'] : '';
         if (!register_login_attempt($username)) {
-            log_event('warning', 'login_rate_limited', ['ip' => $ip]);
+            audit_login_problem('login_rate_limited', $username, $ip);
             $error = RATE_LIMIT_ERROR;
         } else {
             $user = verify_password_login($username, $password);
             if ($user === null) {
-                log_event('notice', 'login_password_failed', ['ip' => $ip]);
+                audit_login_problem('login_password_failed', $username, $ip);
                 $error = GENERIC_LOGIN_ERROR;
             } else {
                 session_regenerate_id(true);
@@ -45,7 +45,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     if ($stage === 'totp' && is_array($pending)) {
         $code = preg_replace('/\s+/', '', text_field($_POST['code'] ?? null));
         if (!register_login_attempt($pending['username'])) {
-            log_event('warning', 'login_rate_limited', ['ip' => $ip, 'user_id' => $pending['uid']]);
+            audit_login_problem('login_rate_limited', $pending['username'], $ip);
             $error = RATE_LIMIT_ERROR;
         } else {
             $stmt = db()->prepare('SELECT * FROM users WHERE id = ? AND active = 1 AND totp_secret IS NOT NULL');
@@ -55,10 +55,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 clear_login_attempts($user['username']);
                 db()->prepare('UPDATE users SET last_login_at = ? WHERE id = ?')->execute([time(), $user['id']]);
                 establish_login_session($user);
-                log_event('info', 'login_success', ['user_id' => (int) $user['id'], 'ip' => $ip]);
+                audit('login_success', (int) $user['id'], (int) $user['id']);
                 redirect('/');
             }
-            log_event('notice', 'login_totp_failed', ['ip' => $ip, 'user_id' => $pending['uid']]);
+            audit_login_problem('login_totp_failed', $pending['username'], $ip);
             $error = 'Code onjuist of al gebruikt. Wacht op een nieuwe code.';
         }
     }

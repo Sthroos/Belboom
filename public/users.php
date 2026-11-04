@@ -52,7 +52,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if ($errors === []) {
             $newId = create_user($username, $displayName, $role, $weeklyHours, $region);
             $_SESSION['invite_link'] = issue_invite($newId);
-            log_event('info', 'user_created', ['admin_id' => (int) $admin['id'], 'user_id' => $newId]);
+            audit('user_created', (int) $admin['id'], $newId, ROLE_LABELS[$role]);
             redirect('/users.php');
         }
     } elseif ($action === 'update' && $targetId !== null) {
@@ -68,7 +68,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             // Role is read from the database on every request, so a change takes effect immediately.
             db()->prepare('UPDATE users SET role = ?, region = ?, weekly_hours = ? WHERE id = ?')
                 ->execute([$role, $region, $weeklyHours, $targetId]);
-            log_event('info', 'user_updated', ['admin_id' => (int) $admin['id'], 'user_id' => $targetId, 'role' => $role]);
+            audit('user_updated', (int) $admin['id'], $targetId, ROLE_LABELS[$role] . ', ' . region_label($region) . ', ' . ($weeklyHours === null ? 'geen uren' : $weeklyHours . ' u/week'));
             flash('ok', 'Gebruiker bijgewerkt.');
             redirect('/users.php');
         }
@@ -80,7 +80,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 ->execute([$action === 'activate' ? 1 : 0, $targetId]);
             flash('ok', $action === 'activate' ? 'Gebruiker geactiveerd.' : 'Gebruiker gedeactiveerd en uitgelogd.');
         }
-        log_event('info', 'user_' . $action, ['admin_id' => (int) $admin['id'], 'user_id' => $targetId]);
+        audit('user_' . $action, (int) $admin['id'], $targetId);
         redirect('/users.php');
     } else {
         $errors[] = 'Ongeldige actie.';

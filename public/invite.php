@@ -61,7 +61,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         unset($password, $confirm);
         $_SESSION = [];
         session_regenerate_id(true);
-        log_event('info', 'invite_accepted', ['user_id' => (int) $invite['user_id']]);
+        audit('invite_accepted', (int) $invite['user_id'], (int) $invite['user_id']);
         flash('ok', 'Account ingesteld. Je kunt nu inloggen.');
         redirect('/login.php');
     }

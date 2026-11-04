@@ -185,6 +185,32 @@ function hash_password(string $password): string
     return password_hash($password, PASSWORD_ARGON2ID, ARGON2_OPTIONS);
 }
 
+function user_id_by_username(string $username): ?int
+{
+    $stmt = db()->prepare('SELECT id FROM users WHERE username = ?');
+    $stmt->execute([$username]);
+    $id = $stmt->fetchColumn();
+    return $id === false ? null : (int) $id;
+}
+
+/**
+ * Failed or blocked logins go to the audit table only for existing accounts (bounded by the
+ * per-user limit); attempts on unknown usernames are logged to stderr only.
+ */
+function audit_login_problem(string $event, string $username, string $ip): void
+{
+    $targetId = user_id_by_username($username);
+    if ($targetId === null) {
+        log_event('notice', $event, ['ip' => $ip, 'known_user' => false]);
+        return;
+    }
+    if ($event === 'login_rate_limited') {
+        audit_throttled($event, null, $targetId, ATTEMPT_WINDOW_SECONDS);
+        return;
+    }
+    audit($event, null, $targetId);
+}
+
 /** @return array<string, mixed>|null active user when the password is correct. */
 function verify_password_login(string $username, string $password): ?array
 {

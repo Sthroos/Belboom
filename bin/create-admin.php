@@ -31,5 +31,5 @@ if ($existing !== false && $existing['role'] !== 'admin') {
 }
 $userId = $existing === false ? create_user($username, $displayName, 'admin', $weeklyHours, null) : (int) $existing['id'];
 $link = issue_invite($userId);
-log_event('info', $existing === false ? 'admin_created_cli' : 'admin_reset_cli', ['user_id' => $userId]);
+audit($existing === false ? 'admin_created_cli' : 'admin_reset_cli', null, $userId);
 fwrite(STDOUT, "Uitnodigingslink (72 uur geldig, eenmalig):\n{$link}\n");
